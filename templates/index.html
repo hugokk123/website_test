@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF工具箱</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding-top: 2rem;
+        }
+        .container {
+            max-width: 800px;
+        }
+        .card {
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .btn-primary {
+            background-color: #0d6efd;
+            border: none;
+            padding: 10px 20px;
+        }
+        .btn-primary:hover {
+            background-color: #0b5ed7;
+        }
+        .progress {
+            height: 25px;
+            margin-top: 20px;
+        }
+        .progress-bar {
+            background-color: #0d6efd;
+        }
+        .status {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        .alert {
+            margin-top: 15px;
+        }
+        .features {
+            padding: 15px;
+            background-color: #f0f8ff;
+            border-radius: 10px;
+            margin-top: 30px;
+        }
+        .features h5 {
+            color: #0d6efd;
+        }
+        .form-check {
+            margin-bottom: 10px;
+        }
+        #customQuality {
+            max-width: 150px;
+        }
+        .nav-tabs .nav-link {
+            font-weight: 500;
+            color: #495057;
+        }
+        .nav-tabs .nav-link.active {
+            color: #0d6efd;
+            font-weight: 600;
+        }
+        .tab-pane {
+            padding: 20px 0;
+        }
+        
+        /* S3 Upload Styles */
+        .upload-container {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            display: none;
+        }
+        .upload-container.drag-over {
+            border-color: #28a745;
+            background-color: rgba(40, 167, 69, 0.1);
+        }
+        .upload-mode-toggle {
+            margin-bottom: 15px;
+        }
+        .form-switch .form-check-input {
+            width: 3em;
+        }
+        .result-container {
+            margin-top: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card p-4">
+            <h1 class="text-center mb-4">PDF工具箱</h1>
+            
+            <!-- Tabs navigation -->
+            <ul class="nav nav-tabs" id="pdfTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="compress-tab" data-bs-toggle="tab" data-bs-target="#compress" 
+                            type="button" role="tab" aria-controls="compress" aria-selected="true">
+                        PDF压缩
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="scan-tab" data-bs-toggle="tab" data-bs-target="#scan" 
+                            type="button" role="tab" aria-controls="scan" aria-selected="false">
+                        扫描效果
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="unlock-tab" data-bs-toggle="tab" data-bs-target="#unlock" 
+                            type="button" role="tab" aria-controls="unlock" aria-selected="false">
+                        PDF解密
+                    </button>
+                </li>
+            </ul>
+            
+            <!-- Tabs content -->
+            <div class="tab-content" id="pdfTabsContent">
+                <!-- PDF压缩选项卡 -->
+                <div class="tab-pane fade show active" id="compress" role="tabpanel" aria-labelledby="compress-tab">
+                    <!-- 上传模式切换 -->
+                    <div class="upload-mode-toggle">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="compressUploadToggle">
+                            <label class="form-check-label" for="compressUploadToggle">
+                                <span class="regular-mode">标准上传</span>/<span class="s3-mode">大文件上传 (S3)</span>
+                            </label>
+                            <small class="form-text text-muted d-block">切换到大文件上传模式可处理超过4MB的PDF文件</small>
+                            <div class="text-danger" id="s3StatusMessage" style="display:none; margin-top: 5px;">
+                                S3服务不可用，请使用标准上传模式
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 标准表单上传 -->
+                    <form id="compressForm" action="/compress" method="post" enctype="multipart/form-data" class="mt-3">
+                        <div class="mb-3">
+                            <label for="compressFile" class="form-label">选择PDF文件</label>
+                            <input type="file" class="form-control" id="compressFile" name="file" accept=".pdf" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">压缩等级</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="qualityPreset" id="standard" value="70" checked>
+                                <label class="form-check-label" for="standard">标准（推荐） - 70</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="qualityPreset" id="strong" value="40">
+                                <label class="form-check-label" for="strong">强力压缩 - 40</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="qualityPreset" id="lossless" value="90">
+                                <label class="form-check-label" for="lossless">无损画质 - 90</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="qualityPreset" id="custom" value="custom">
+                                <label class="form-check-label" for="custom">自定义：</label>
+                                <input type="number" class="form-control mt-2" id="customQuality" name="quality" min="1" max="100" value="70" disabled>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="compressSavePath" class="form-label">保存路径（可选）</label>
+                            <input type="text" class="form-control" id="compressSavePath" name="savePath" placeholder="例如：C:/Downloads/compressed.pdf">
+                            <div class="form-text">如果不指定，仅提供下载；指定后，文件会额外保存到指定位置</div>
+                        </div>
+                        <div class="text-center">
+                            <button type="submit" class="btn btn-primary" id="compressBtn">压缩PDF</button>
+                        </div>
+                        
+                        <div class="progress d-none compress-progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <div class="status text-center" id="compressStatus"></div>
+                    </form>
+                    
+                    <!-- S3 大文件上传 -->
+                    <div id="compressS3Container" class="s3-upload-container" style="display: none;">
+                        <div id="compressUploadContainer" class="upload-container">
+                            <h5>拖放文件到这里或点击上传</h5>
+                            <p class="text-muted">支持最大 100MB 的 PDF 文件</p>
+                            <input type="file" id="compressPdfFile" accept=".pdf" class="d-none">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="compressQuality" class="form-label">压缩质量：<span id="compressQualityValue">70</span></label>
+                            <input type="range" class="form-range" id="compressQuality" min="30" max="95" value="70">
+                        </div>
+                        
+                        <div class="progress compress-s3-progress" style="display: none;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%"></div>
+                        </div>
+                        
+                        <button id="compressProcessBtn" class="btn btn-primary w-100" disabled>压缩 PDF</button>
+                        
+                        <div class="result-container" id="compressResultContainer">
+                            <div class="alert alert-success">
+                                <p id="compressResultMessage"></p>
+                            </div>
+                            <a id="compressDownloadLink" href="#" class="btn btn-success w-100">下载压缩后的文件</a>
+                        </div>
+                    </div>
+                    
+                    <div class="features mt-4">
+                        <h5>PDF压缩小提示</h5>
+                        <ul>
+                            <li>如果PDF包含高分辨率图像，压缩效果会更好</li>
+                            <li>对于已经优化的PDF或主要包含文本的PDF，压缩效果可能不明显</li>
+                            <li>标准压缩(70)适合大多数情况，强力压缩(40)可获得更小的文件，但质量会降低</li>
+                            <li>无损画质(90)适合对图像质量要求较高的场景</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- 扫描效果选项卡 -->
+                <div class="tab-pane fade" id="scan" role="tabpanel" aria-labelledby="scan-tab">
+                    <!-- 上传模式切换 -->
+                    <div class="upload-mode-toggle">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="scanUploadToggle">
+                            <label class="form-check-label" for="scanUploadToggle">
+                                <span class="regular-mode">标准上传</span>/<span class="s3-mode">大文件上传 (S3)</span>
+                            </label>
+                            <small class="form-text text-muted d-block">切换到大文件上传模式可处理超过4MB的PDF文件</small>
+                        </div>
+                    </div>
+                    
+                    <!-- 标准表单上传 -->
+                    <form id="scanForm" action="/scan" method="post" enctype="multipart/form-data" class="mt-3">
+                        <div class="mb-3">
+                            <label for="scanFile" class="form-label">选择PDF文件</label>
+                            <input type="file" class="form-control" id="scanFile" name="file" accept=".pdf" required>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="dpi" class="form-label">DPI设置</label>
+                                <select class="form-select" id="dpi" name="dpi">
+                                    <option value="150">150 (较低清晰度)</option>
+                                    <option value="300" selected>300 (标准清晰度)</option>
+                                    <option value="600">600 (高清晰度)</option>
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="colorspace" class="form-label">颜色空间</label>
+                                <select class="form-select" id="colorspace" name="colorspace">
+                                    <option value="RGB" selected>RGB (保留原始颜色)</option>
+                                    <option value="GRAY">灰度 (黑白效果)</option>
+                                </select>
+                                <div class="form-text">RGB模式将保留原始颜色，灰度模式将转换为黑白效果</div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="noise_level" class="form-label">噪点等级 (0-30)</label>
+                                <input type="range" class="form-range" id="noise_level" name="noise_level" min="0" max="30" value="0">
+                                <div class="d-flex justify-content-between">
+                                    <span>无噪点</span>
+                                    <span id="noiseValue">0</span>
+                                    <span>强噪点</span>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="rotate" class="form-label">旋转角度 (0-3度)</label>
+                                <input type="range" class="form-range" id="rotate" name="rotate" min="0" max="3" step="0.1" value="0.0">
+                                <div class="d-flex justify-content-between">
+                                    <span>无旋转</span>
+                                    <span id="rotateValue">0.0°</span>
+                                    <span>明显旋转</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="border" class="form-label">边框大小 (0-50像素)</label>
+                                <input type="range" class="form-range" id="border" name="border" min="0" max="50" value="0">
+                                <div class="d-flex justify-content-between">
+                                    <span>无边框</span>
+                                    <span id="borderValue">0</span>
+                                    <span>宽边框</span>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="yellowish" name="yellowish" value="true" checked>
+                                    <label class="form-check-label" for="yellowish">泛黄效果</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="brightness" class="form-label">亮度调整 (0.5-1.5)</label>
+                                <input type="range" class="form-range" id="brightness" name="brightness" min="0.5" max="1.5" step="0.05" value="0.95">
+                                <div class="d-flex justify-content-between">
+                                    <span>暗</span>
+                                    <span id="brightnessValue">0.95</span>
+                                    <span>亮</span>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="contrast" class="form-label">对比度调整 (0.5-1.5)</label>
+                                <input type="range" class="form-range" id="contrast" name="contrast" min="0.5" max="1.5" step="0.05" value="0.9">
+                                <div class="d-flex justify-content-between">
+                                    <span>低</span>
+                                    <span id="contrastValue">0.9</span>
+                                    <span>高</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="label_text" class="form-label">水印文字 (可选)</label>
+                            <input type="text" class="form-control" id="label_text" name="label_text" placeholder="例如：扫描于2023年5月">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="scanSavePath" class="form-label">保存路径（可选）</label>
+                            <input type="text" class="form-control" id="scanSavePath" name="savePath" placeholder="例如：C:/Downloads/scanned.pdf">
+                        </div>
+                        
+                        <!-- 添加实时预览区域 -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                实时预览（选择文件后自动生成）
+                            </div>
+                            <div class="card-body d-flex justify-content-center align-items-center" style="min-height: 200px;">
+                                <div id="previewContainer" class="text-center">
+                                    <p class="mb-0 text-muted">请先选择PDF文件</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center">
+                            <button type="submit" class="btn btn-primary" id="scanBtn">添加扫描效果</button>
+                        </div>
+                        
+                        <div class="progress d-none scan-progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <div class="status text-center" id="scanStatus"></div>
+                    </form>
+                    
+                    <!-- S3 大文件上传 -->
+                    <div id="scanS3Container" class="s3-upload-container" style="display: none;">
+                        <div id="scanUploadContainer" class="upload-container">
+                            <h5>拖放文件到这里或点击上传</h5>
+                            <p class="text-muted">支持最大 100MB 的 PDF 文件</p>
+                            <input type="file" id="scanPdfFile" accept=".pdf" class="d-none">
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="scanS3Dpi" class="form-label">DPI设置</label>
+                                <select class="form-select" id="scanS3Dpi">
+                                    <option value="150">150 (较低清晰度)</option>
+                                    <option value="300" selected>300 (标准清晰度)</option>
+                                    <option value="600">600 (高清晰度)</option>
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="scanS3Colorspace" class="form-label">颜色空间</label>
+                                <select class="form-select" id="scanS3Colorspace">
+                                    <option value="RGB" selected>RGB (保留原始颜色)</option>
+                                    <option value="GRAY">灰度 (黑白效果)</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="scanS3NoiseLevel" class="form-label">噪点等级: <span id="scanS3NoiseValue">0</span></label>
+                                <input type="range" class="form-range" id="scanS3NoiseLevel" min="0" max="30" value="0">
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="scanS3Rotate" class="form-label">旋转角度: <span id="scanS3RotateValue">0.0°</span></label>
+                                <input type="range" class="form-range" id="scanS3Rotate" min="0" max="3" step="0.1" value="0.0">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="scanS3Border" class="form-label">边框大小: <span id="scanS3BorderValue">0</span>像素</label>
+                                <input type="range" class="form-range" id="scanS3Border" min="0" max="50" value="0">
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="scanS3Yellowish" checked>
+                                    <label class="form-check-label" for="scanS3Yellowish">泛黄效果</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="scanS3Brightness" class="form-label">亮度调整: <span id="scanS3BrightnessValue">0.95</span></label>
+                                <input type="range" class="form-range" id="scanS3Brightness" min="0.5" max="1.5" step="0.05" value="0.95">
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="scanS3Contrast" class="form-label">对比度调整: <span id="scanS3ContrastValue">0.9</span></label>
+                                <input type="range" class="form-range" id="scanS3Contrast" min="0.5" max="1.5" step="0.05" value="0.9">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="scanS3LabelText" class="form-label">水印文字 (可选)</label>
+                            <input type="text" class="form-control" id="scanS3LabelText" placeholder="例如：扫描于2023年5月">
+                        </div>
+                        
+                        <div class="progress scan-s3-progress" style="display: none;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%"></div>
+                        </div>
+                        
+                        <button id="scanProcessBtn" class="btn btn-primary w-100" disabled>添加扫描效果</button>
+                        
+                        <div class="result-container" id="scanResultContainer">
+                            <div class="alert alert-success">
+                                <p id="scanResultMessage"></p>
+                            </div>
+                            <a id="scanDownloadLink" href="#" class="btn btn-success w-100">下载处理后的文件</a>
+                        </div>
+                    </div>
+                    
+                    <div class="features mt-4">
+                        <h5>扫描效果小提示</h5>
+                        <ul>
+                            <li>扫描效果可以让电子文档看起来像真实扫描件</li>
+                            <li>默认无噪点，可以根据需要通过滑块调整噪点强度</li>
+                            <li>默认启用泛黄效果，可以取消选中复选框关闭此效果</li>
+                            <li>默认无旋转，可以通过滑块添加随机的轻微旋转效果</li>
+                            <li>文字会被自动转换为深灰色，更贴近真实扫描件</li>
+                            <li>轻微的高斯模糊效果能模拟扫描仪的轻微失焦</li>
+                            <li>建议根据需要合理设置DPI值，过高会导致文件大小增加</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- PDF解密选项卡 -->
+                <div class="tab-pane fade" id="unlock" role="tabpanel" aria-labelledby="unlock-tab">
+                    <!-- 上传模式切换 -->
+                    <div class="upload-mode-toggle">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="unlockUploadToggle">
+                            <label class="form-check-label" for="unlockUploadToggle">
+                                <span class="regular-mode">标准上传</span>/<span class="s3-mode">大文件上传 (S3)</span>
+                            </label>
+                            <small class="form-text text-muted d-block">切换到大文件上传模式可处理超过4MB的PDF文件</small>
+                        </div>
+                    </div>
+                    
+                    <!-- 标准表单上传 -->
+                    <form id="unlockForm" action="/unlock" method="post" enctype="multipart/form-data" class="mt-3">
+                        <div class="mb-3">
+                            <label for="unlockFile" class="form-label">选择受密码保护的PDF文件</label>
+                            <input type="file" class="form-control" id="unlockFile" name="file" accept=".pdf" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="password" class="form-label">密码 (如果知道)</label>
+                            <input type="password" class="form-control" id="password" name="password" placeholder="输入PDF密码">
+                            <div class="form-text">如果您知道PDF的密码，请在此输入以提高解密成功率</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="unlockSavePath" class="form-label">保存路径（可选）</label>
+                            <input type="text" class="form-control" id="unlockSavePath" name="savePath" placeholder="例如：C:/Downloads/unlocked.pdf">
+                            <div class="form-text">如果不指定，仅提供下载；指定后，文件会额外保存到指定位置</div>
+                        </div>
+                        
+                        <div class="text-center">
+                            <button type="submit" class="btn btn-primary" id="unlockBtn">解密PDF</button>
+                        </div>
+                        
+                        <div class="progress d-none unlock-progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <div class="status text-center" id="unlockStatus"></div>
+                    </form>
+                    
+                    <!-- S3 大文件上传 -->
+                    <div id="unlockS3Container" class="s3-upload-container" style="display: none;">
+                        <div id="unlockUploadContainer" class="upload-container">
+                            <h5>拖放受密码保护的PDF文件到这里或点击上传</h5>
+                            <p class="text-muted">支持最大 100MB 的 PDF 文件</p>
+                            <input type="file" id="unlockPdfFile" accept=".pdf" class="d-none">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="unlockS3Password" class="form-label">密码 (如果知道)</label>
+                            <input type="password" class="form-control" id="unlockS3Password" placeholder="输入PDF密码">
+                            <div class="form-text">如果您知道PDF的密码，请在此输入以提高解密成功率</div>
+                        </div>
+                        
+                        <div class="progress unlock-s3-progress" style="display: none;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%"></div>
+                        </div>
+                        
+                        <button id="unlockProcessBtn" class="btn btn-primary w-100" disabled>解密 PDF</button>
+                        
+                        <div class="result-container" id="unlockResultContainer">
+                            <div class="alert alert-success">
+                                <p id="unlockResultMessage"></p>
+                            </div>
+                            <a id="unlockDownloadLink" href="#" class="btn btn-success w-100">下载解密后的文件</a>
+                        </div>
+                    </div>
+                    
+                    <div class="features mt-4">
+                        <h5>PDF解密小提示</h5>
+                        <ul>
+                            <li>本工具可以移除PDF的用户密码保护，允许查看和编辑</li>
+                            <li>如果您知道PDF的密码，请提供以提高解密成功率</li>
+                            <li>对于某些使用高级加密的PDF文件，解密可能不成功</li>
+                            <li>解密过程不会改变PDF的内容，仅移除密码保护</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if message %}
+        <div class="card p-4">
+            <div class="alert alert-info mb-0">
+                {{ message }}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 自定义质量控制
+            const customRadio = document.getElementById('custom');
+            const customQuality = document.getElementById('customQuality');
+            
+            // 监听单选按钮状态变化
+            document.querySelectorAll('input[name="qualityPreset"]').forEach(function(radio) {
+                radio.addEventListener('change', function() {
+                    customQuality.disabled = !customRadio.checked;
+                });
+            });
+            
+            // 设置噪点等级和旋转角度显示
+            const noiseSlider = document.getElementById('noise_level');
+            const noiseValue = document.getElementById('noiseValue');
+            const rotateSlider = document.getElementById('rotate');
+            const rotateValue = document.getElementById('rotateValue');
+            
+            noiseSlider?.addEventListener('input', function() {
+                noiseValue.textContent = this.value;
+            });
+            
+            rotateSlider?.addEventListener('input', function() {
+                rotateValue.textContent = this.value + '°';
+            });
+            
+            // 表单提交处理
+            const compressForm = document.getElementById('compressForm');
+            const compressBtn = document.getElementById('compressBtn');
+            const compressProgress = document.querySelector('.compress-progress');
+            const compressStatus = document.getElementById('compressStatus');
+            
+            compressForm?.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                compressBtn.disabled = true;
+                compressProgress.classList.remove('d-none');
+                compressStatus.textContent = '正在处理，请稍候...';
+                
+                const formData = new FormData(compressForm);
+                
+                // 检查是否选择了自定义质量
+                if (customRadio.checked) {
+                    formData.set('quality', customQuality.value);
+                } else {
+                    // 使用预设值
+                    const selectedPreset = document.querySelector('input[name="qualityPreset"]:checked');
+                    formData.set('quality', selectedPreset.value);
+                }
+                
+                fetch('/compress', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('处理失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        compressStatus.textContent = `处理成功：${data.message}`;
+                        // 重定向到下载链接
+                        window.location.href = data.download_url;
+                    } else {
+                        compressStatus.textContent = `处理失败：${data.message}`;
+                    }
+                })
+                .catch(error => {
+                    compressStatus.textContent = '发生错误：' + error.message;
+                })
+                .finally(() => {
+                    compressBtn.disabled = false;
+                    // 保持进度条可见，但修改样式表示完成
+                    compressProgress.querySelector('.progress-bar').style.width = '100%';
+                });
+            });
+
+            // S3 上传功能实现
+            
+            // 1. 模式切换功能
+            const compressUploadToggle = document.getElementById('compressUploadToggle');
+            const scanUploadToggle = document.getElementById('scanUploadToggle');
+            const unlockUploadToggle = document.getElementById('unlockUploadToggle');
+            
+            // 压缩模式切换
+            compressUploadToggle?.addEventListener('change', function() {
+                const regularForm = document.getElementById('compressForm');
+                const s3Container = document.getElementById('compressS3Container');
+                
+                if (this.checked) {
+                    // 切换到S3上传模式
+                    regularForm.style.display = 'none';
+                    s3Container.style.display = 'block';
+                    document.getElementById('compressUploadContainer').style.display = 'block';
+                } else {
+                    // 切换到标准上传模式
+                    regularForm.style.display = 'block';
+                    s3Container.style.display = 'none';
+                }
+            });
+            
+            // 扫描效果模式切换
+            scanUploadToggle?.addEventListener('change', function() {
+                const regularForm = document.getElementById('scanForm');
+                const s3Container = document.getElementById('scanS3Container');
+                
+                if (this.checked) {
+                    // 切换到S3上传模式
+                    regularForm.style.display = 'none';
+                    s3Container.style.display = 'block';
+                    document.getElementById('scanUploadContainer').style.display = 'block';
+                } else {
+                    // 切换到标准上传模式
+                    regularForm.style.display = 'block';
+                    s3Container.style.display = 'none';
+                }
+            });
+            
+            // 解密模式切换
+            unlockUploadToggle?.addEventListener('change', function() {
+                const regularForm = document.getElementById('unlockForm');
+                const s3Container = document.getElementById('unlockS3Container');
+                
+                if (this.checked) {
+                    // 切换到S3上传模式
+                    regularForm.style.display = 'none';
+                    s3Container.style.display = 'block';
+                    document.getElementById('unlockUploadContainer').style.display = 'block';
+                } else {
+                    // 切换到标准上传模式
+                    regularForm.style.display = 'block';
+                    s3Container.style.display = 'none';
+                }
+            });
+            
+            // 2. 拖放上传功能
+            function setupDragDropUpload(containerId, fileInputId, processButtonId, fileSelectedCallback) {
+                const container = document.getElementById(containerId);
+                const fileInput = document.getElementById(fileInputId);
+                const processBtn = document.getElementById(processButtonId);
+                
+                if (!container || !fileInput || !processBtn) return;
+                
+                // 点击上传区域触发文件选择
+                container.addEventListener('click', function() {
+                    fileInput.click();
+                });
+                
+                // 拖放事件
+                container.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.classList.add('drag-over');
+                });
+                
+                container.addEventListener('dragleave', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.classList.remove('drag-over');
+                });
+                
+                container.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.classList.remove('drag-over');
+                    
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        fileInput.files = files;
+                        handleFileSelect();
+                    }
+                });
+                
+                // 文件选择处理
+                fileInput.addEventListener('change', handleFileSelect);
+                
+                function handleFileSelect() {
+                    if (fileInput.files.length === 0) return;
+                    
+                    const file = fileInput.files[0];
+                    
+                    if (!file.name.toLowerCase().endsWith('.pdf')) {
+                        alert('请选择 PDF 文件');
+                        return;
+                    }
+                    
+                    container.querySelector('h5').textContent = `已选择: ${file.name}`;
+                    processBtn.disabled = false;
+                    
+                    if (fileSelectedCallback) {
+                        fileSelectedCallback(file);
+                    }
+                }
+            }
+            
+            // 3. 设置各功能的拖放上传
+            
+            // 压缩功能
+            setupDragDropUpload('compressUploadContainer', 'compressPdfFile', 'compressProcessBtn');
+            
+            // 扫描效果功能
+            setupDragDropUpload('scanUploadContainer', 'scanPdfFile', 'scanProcessBtn');
+            
+            // 解密功能
+            setupDragDropUpload('unlockUploadContainer', 'unlockPdfFile', 'unlockProcessBtn');
+            
+            // 4. 配置滑块和其他控件
+            
+            // 压缩质量滑块
+            const compressQualitySlider = document.getElementById('compressQuality');
+            const compressQualityValue = document.getElementById('compressQualityValue');
+            
+            compressQualitySlider?.addEventListener('input', function() {
+                compressQualityValue.textContent = this.value;
+            });
+            
+            // 扫描效果滑块
+            const scanNoiseSlider = document.getElementById('scanS3NoiseLevel');
+            const scanNoiseValue = document.getElementById('scanS3NoiseValue');
+            const scanRotateSlider = document.getElementById('scanS3Rotate');
+            const scanRotateValue = document.getElementById('scanS3RotateValue');
+            
+            scanNoiseSlider?.addEventListener('input', function() {
+                scanNoiseValue.textContent = this.value;
+            });
+            
+            scanRotateSlider?.addEventListener('input', function() {
+                scanRotateValue.textContent = this.value + '°';
+            });
+            
+            // 添加其他扫描效果控件事件监听
+            const scanBorderSlider = document.getElementById('scanS3Border');
+            const scanBorderValue = document.getElementById('scanS3BorderValue');
+            scanBorderSlider?.addEventListener('input', function() {
+                scanBorderValue.textContent = this.value;
+            });
+            
+            const scanBrightnessSlider = document.getElementById('scanS3Brightness');
+            const scanBrightnessValue = document.getElementById('scanS3BrightnessValue');
+            scanBrightnessSlider?.addEventListener('input', function() {
+                scanBrightnessValue.textContent = this.value;
+            });
+            
+            const scanContrastSlider = document.getElementById('scanS3Contrast');
+            const scanContrastValue = document.getElementById('scanS3ContrastValue');
+            scanContrastSlider?.addEventListener('input', function() {
+                scanContrastValue.textContent = this.value;
+            });
+            
+            // 5. S3处理功能
+            
+            // 通用S3处理函数
+            async function processWithS3(file, processType, options, progressBar, resultContainer, resultMessage, downloadLink) {
+                try {
+                    // 显示进度条
+                    progressBar.style.display = 'flex';
+                    progressBar.querySelector('.progress-bar').style.width = '10%';
+                    
+                    // 1. 获取预签名上传URL
+                    const uploadUrlResponse = await fetch('/api/get-upload-url', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            filename: file.name
+                        })
+                    });
+                    
+                    if (!uploadUrlResponse.ok) {
+                        const errorData = await uploadUrlResponse.json();
+                        // 检查是否是S3不可用错误
+                        if (errorData.code === 'S3_UNAVAILABLE') {
+                            alert('AWS S3服务不可用: ' + errorData.error + '\n请切换到标准上传模式。');
+                            // 自动切换到标准上传模式
+                            const tabId = processType === 'compress' ? 'compressUploadToggle' : 
+                                         processType === 'scan' ? 'scanUploadToggle' : 'unlockUploadToggle';
+                            document.getElementById(tabId).checked = false;
+                            document.getElementById(tabId).dispatchEvent(new Event('change'));
+                            
+                            // 显示S3不可用消息
+                            const statusMessages = document.querySelectorAll('#s3StatusMessage');
+                            statusMessages.forEach(msg => {
+                                msg.style.display = 'block';
+                                msg.textContent = 'AWS S3服务不可用: ' + errorData.error;
+                            });
+                            
+                            return false;
+                        }
+                        throw new Error('获取上传URL失败: ' + (errorData.error || '未知错误'));
+                    }
+                    
+                    const uploadData = await uploadUrlResponse.json();
+                    let { uploadUrl, objectKey } = uploadData;
+                    
+                    // 修正可能的区域问题
+                    if (uploadUrl.includes('/us-east-1/')) {
+                        uploadUrl = uploadUrl.replace('/us-east-1/', '/us-east-2/');
+                    }
+                    
+                    // 检查 X-Amz-Credential 参数
+                    if (uploadUrl.includes('us-east-1%2Fs3')) {
+                        uploadUrl = uploadUrl.replace('us-east-1%2Fs3', 'us-east-2%2Fs3');
+                    }
+                    
+                    console.log('修正后的上传URL:', uploadUrl);
+                    
+                    // 2. 上传到S3
+                    progressBar.querySelector('.progress-bar').style.width = '30%';
+                    const uploadResult = await fetch(uploadUrl, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/pdf'
+                        },
+                        body: file
+                    });
+                    
+                    if (!uploadResult.ok) {
+                        const errorText = await uploadResult.text();
+                        console.error('S3 上传响应:', errorText);
+                        
+                        // 检查是否是区域错误
+                        if (errorText.includes('region') && errorText.includes('us-east-1') && errorText.includes('us-east-2')) {
+                            throw new Error(`S3区域错误: 请联系管理员检查AWS配置 (${uploadResult.status})`);
+                        }
+                        
+                        // 检查是否是访问密钥错误
+                        if (errorText.includes('InvalidAccessKeyId') || errorText.includes('Access Key Id')) {
+                            throw new Error(`AWS访问密钥无效: 请联系管理员更新AWS凭证 (${uploadResult.status})`);
+                        }
+                        
+                        throw new Error(`上传文件到S3失败 (${uploadResult.status}): ${errorText}`);
+                    }
+                    
+                    // 3. 调用处理API
+                    progressBar.querySelector('.progress-bar').style.width = '50%';
+                    
+                    // 准备处理参数
+                    const processParams = {
+                        objectKey: objectKey,
+                        processType: processType,
+                        ...options
+                    };
+                    
+                    const processResponse = await fetch('/api/process-pdf', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(processParams)
+                    });
+                    
+                    if (!processResponse.ok) {
+                        const errorData = await processResponse.json();
+                        throw new Error(errorData.error || `处理${processType}失败`);
+                    }
+                    
+                    const processResult = await processResponse.json();
+                    
+                    // 4. 更新进度条和显示结果
+                    progressBar.querySelector('.progress-bar').style.width = '100%';
+                    resultContainer.style.display = 'block';
+                    resultMessage.textContent = processResult.message;
+                    downloadLink.href = processResult.downloadUrl;
+                    
+                    return true;
+                } catch (error) {
+                    console.error('处理过程中出错:', error);
+                    alert(`处理失败: ${error.message}`);
+                    progressBar.querySelector('.progress-bar').style.width = '0%';
+                    return false;
+                }
+            }
+            
+            // 压缩处理
+            const compressProcessBtn = document.getElementById('compressProcessBtn');
+            compressProcessBtn?.addEventListener('click', async function() {
+                const file = document.getElementById('compressPdfFile').files[0];
+                if (!file) return;
+                
+                // 禁用按钮
+                this.disabled = true;
+                
+                try {
+                    await processWithS3(
+                        file,
+                        'compress',
+                        { quality: parseInt(document.getElementById('compressQuality').value) },
+                        document.querySelector('.compress-s3-progress'),
+                        document.getElementById('compressResultContainer'),
+                        document.getElementById('compressResultMessage'),
+                        document.getElementById('compressDownloadLink')
+                    );
+                } finally {
+                    // 重新启用按钮
+                    this.disabled = false;
+                }
+            });
+            
+            // 扫描效果处理
+            const scanProcessBtn = document.getElementById('scanProcessBtn');
+            scanProcessBtn?.addEventListener('click', async function() {
+                const file = document.getElementById('scanPdfFile').files[0];
+                if (!file) return;
+                
+                // 禁用按钮
+                this.disabled = true;
+                
+                try {
+                    await processWithS3(
+                        file,
+                        'scan',
+                        {
+                            dpi: document.getElementById('scanS3Dpi').value,
+                            colorspace: document.getElementById('scanS3Colorspace').value,
+                            noise_level: document.getElementById('scanS3NoiseLevel').value,
+                            rotate: document.getElementById('scanS3Rotate').value,
+                            border: document.getElementById('scanS3Border').value,
+                            yellowish: document.getElementById('scanS3Yellowish').checked,
+                            brightness: document.getElementById('scanS3Brightness').value,
+                            contrast: document.getElementById('scanS3Contrast').value,
+                            label_text: document.getElementById('scanS3LabelText').value
+                        },
+                        document.querySelector('.scan-s3-progress'),
+                        document.getElementById('scanResultContainer'),
+                        document.getElementById('scanResultMessage'),
+                        document.getElementById('scanDownloadLink')
+                    );
+                } finally {
+                    // 重新启用按钮
+                    this.disabled = false;
+                }
+            });
+            
+            // 解密处理
+            const unlockProcessBtn = document.getElementById('unlockProcessBtn');
+            unlockProcessBtn?.addEventListener('click', async function() {
+                const file = document.getElementById('unlockPdfFile').files[0];
+                if (!file) return;
+                
+                // 禁用按钮
+                this.disabled = true;
+                
+                try {
+                    await processWithS3(
+                        file,
+                        'unlock',
+                        { password: document.getElementById('unlockS3Password').value },
+                        document.querySelector('.unlock-s3-progress'),
+                        document.getElementById('unlockResultContainer'),
+                        document.getElementById('unlockResultMessage'),
+                        document.getElementById('unlockDownloadLink')
+                    );
+                } finally {
+                    // 重新启用按钮
+                    this.disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html> 
